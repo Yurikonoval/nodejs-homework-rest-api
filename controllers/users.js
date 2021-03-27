@@ -1,8 +1,23 @@
 const jwt = require('jsonwebtoken')
-const Users = require('../model/users.js')
-const { HttpCode } = require('../helpers/constants')
+const fs = require('fs').promises
+const path = require('path')
+const Jimp = require('jimp')
 require('dotenv').config()
+// const { promisify } = require('util')
+// const cloudinary = require('cloudinary').v2
+const createFolderIsExist = require('../helpers/create-dir')
+const { HttpCode } = require('../helpers/constants')
+const Users = require('../model/users.js')
+
 const SECRET_KEY = process.env.JWT_SECRET
+
+// cloudinary.config({
+//   cloud_name: process.env.CLOUD_NAME,
+//   api_key: process.env.API_KEY,
+//   api_secret: process.env.API_SECRET,
+// })
+
+// const uploadCloud = promisify(cloudinary.uploader.upload)
 
 const reg = async (req, res, next) => {
   try {
@@ -36,7 +51,7 @@ const login = async (req, res, next) => {
   try {
     const { email, password } = req.body
     const user = await Users.findByEmail(email)
-    const isValidPassword = await user.validPassword(password)
+    const isValidPassword = await user?.validPassword(password)
     if (!user || !isValidPassword) {
       return res.status(HttpCode.UNAUTHORIZED).json({
         status: 'error',
@@ -109,4 +124,73 @@ const updateSubscription = async (req, res, next) => {
   }
 }
 
-module.exports = { reg, login, logout, current, updateSubscription }
+const avatars = async (req, res, next) => {
+  try {
+    const id = req.user.id
+    const avatarURL = await saveAvatarToStatic(req)
+    // const {
+    //   public_id: imgIdCloud,
+    //   secure_url: avatarURL,
+    // } = await saveAvatarToCloud(req)
+    // await Users.updateAvatar(id, avatarURL, imgIdCloud)
+
+    await Users.updateAvatar(id, avatarURL)
+    return res.json({
+      status: 'success',
+      code: HttpCode.OK,
+      data: {
+        avatarURL,
+      },
+    })
+  } catch (e) {
+    next(e)
+  }
+}
+const saveAvatarToStatic = async req => {
+  const id = req.user.id
+  const AVATARS_OF_USERS = process.env.AVATARS_OF_USERS
+  const pathFile = req.file.path
+  const newNameAvatar = `${Date.now()}-${req.file.originalname}`
+  const img = await Jimp.read(pathFile)
+  await img
+    .autocrop()
+    .cover(250, 250, Jimp.HORIZONTAL_ALIGN_CENTER | Jimp.VERTICAL_ALIGN_MIDDLE)
+    .writeAsync(pathFile)
+  await createFolderIsExist(path.join(AVATARS_OF_USERS, id))
+  await fs.rename(pathFile, path.join(AVATARS_OF_USERS, id, newNameAvatar))
+  const avatarURL = path.normalize(path.join(id, newNameAvatar))
+  try {
+    await fs.unlink(
+      path.join(process.cwd(), AVATARS_OF_USERS, req.user.avatarURL),
+    )
+  } catch (e) {
+    console.log(e.message)
+  }
+  return avatarURL
+}
+
+// const saveAvatarToCloud = async req => {
+//   const pathFile = req.file.path
+//   const result = await uploadCloud(pathFile, {
+//     folder: 'photo',
+//     transformation: { width: 250, height: 250, crop: 'fill' },
+//   })
+//   cloudinary.uploader.destroy(req.user.imgIdCloud, (err, result) => {
+//     console.log(err, result)
+//   })
+//   try {
+//     await fs.unlink(pathFile)
+//   } catch (e) {
+//     console.log(e.message)
+//   }
+//   return result
+// }
+
+module.exports = {
+  reg,
+  login,
+  logout,
+  current,
+  updateSubscription,
+  avatars,
+}
