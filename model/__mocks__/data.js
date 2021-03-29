@@ -39,6 +39,9 @@ const User = {
 const users = []
 users[0] = User
 
-const newUser = { email: 'test@test.com', password: '123456' }
+const newUser = {
+  email: 'email@gmail.com',
+  password: '2333323hg',
+}
 
 module.exports = { contacts, newContact, User, users, newUser }
