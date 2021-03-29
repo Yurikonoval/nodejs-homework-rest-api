@@ -13,7 +13,7 @@ const schemaLoginUser = Joi.object({
 })
 
 const schemaUpdateSubscription = Joi.object({
-  subscription: Joi.any().valid('free', 'pro', 'premium').required(),
+  subscription: Joi.any().valid('free', 'pro', 'premium'),
 })
 
 const validate = (schema, obj, next) => {
@@ -38,4 +38,16 @@ module.exports.loginUser = (req, res, next) => {
 
 module.exports.updateSubscription = (req, res, next) => {
   return validate(schemaUpdateSubscription, req.body, next)
+}
+
+module.exports.validateUploadAvatar = (req, res, next) => {
+  if (!req.file) {
+    return res.status(HttpCode.BAD_REQUEST).json({
+      status: 'error',
+      code: HttpCode.BAD_REQUEST,
+      data: 'Bad request',
+      message: 'Field of avatar with file not found',
+    })
+  }
+  next()
 }
