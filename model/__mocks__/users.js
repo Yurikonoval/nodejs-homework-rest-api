@@ -11,14 +11,14 @@ const findById = jest.fn(id => {
   return user
 })
 
-const create = jest.fn(({ name = 'Guest', email, password, sex = 'm' }) => {
+const create = jest.fn(({ name = 'Guest', email, password, sex = 'f' }) => {
   const pass = bcrypt.hashSync(password, bcrypt.genSaltSync(10), null)
   const newUser = {
     name,
     email,
     password: pass,
     sex,
-    _id: '605db6fc5bf4ff25dce3eb73',
+    _id: '605db6fc5bf4ff25dce3eb7x',
     validPassword: function (pass) {
       return bcrypt.compareSync(pass, this.password)
     },
