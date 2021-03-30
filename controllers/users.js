@@ -1,13 +1,15 @@
 const jwt = require('jsonwebtoken')
 const fs = require('fs').promises
+const Users = require('../model/users.js')
 const path = require('path')
 const Jimp = require('jimp')
+const { nanoid } = require('nanoid')
 require('dotenv').config()
 // const { promisify } = require('util')
 // const cloudinary = require('cloudinary').v2
 const createFolderIsExist = require('../helpers/create-dir')
 const { HttpCode } = require('../helpers/constants')
-const Users = require('../model/users.js')
+const EmailService = require('../services/email')
 
 const SECRET_KEY = process.env.JWT_SECRET
 
@@ -21,7 +23,7 @@ const SECRET_KEY = process.env.JWT_SECRET
 
 const reg = async (req, res, next) => {
   try {
-    const { name, email, password, sex } = req.body
+    const { name, email } = req.body
     const user = await Users.findByEmail(email)
     if (user) {
       return res.status(HttpCode.CONFLICT).json({
@@ -31,8 +33,14 @@ const reg = async (req, res, next) => {
         message: 'Email in use',
       })
     }
-
-    const newUser = await Users.create(req.body)
+    const verificationToken = nanoid()
+    const emailService = new EmailService(process.env.NODE_ENV)
+    await emailService.sendEmail(verificationToken, email, name)
+    const newUser = await Users.create({
+      ...req.body,
+      verify: false,
+      verificationToken,
+    })
     return res.status(HttpCode.CREATED).json({
       status: 'success',
       code: HttpCode.CREATED,
@@ -53,7 +61,7 @@ const login = async (req, res, next) => {
     const { email, password } = req.body
     const user = await Users.findByEmail(email)
     const isValidPassword = await user?.validPassword(password)
-    if (!user || !isValidPassword) {
+    if (!user || !isValidPassword || !user.verify) {
       return res.status(HttpCode.UNAUTHORIZED).json({
         status: 'error',
         code: HttpCode.UNAUTHORIZED,
@@ -170,6 +178,30 @@ const saveAvatarToStatic = async req => {
   return avatarURL
 }
 
+const verify = async (req, res, next) => {
+  try {
+    const user = await Users.findByVerificationToken(
+      req.params.verificationToken,
+    )
+    if (user) {
+      await Users.updateVerificationToken(user.id, true, null)
+      return res.json({
+        status: 'success',
+        code: HttpCode.OK,
+        message: 'Verification successful!',
+      })
+    }
+    return res.status(HttpCode.BAD_REQUEST).json({
+      status: 'error',
+      code: HttpCode.BAD_REQUEST,
+      data: 'Bad request',
+      message: 'Link is not valid',
+    })
+  } catch (e) {
+    next(e)
+  }
+}
+
 // const saveAvatarToCloud = async req => {
 //   const pathFile = req.file.path
 //   const result = await uploadCloud(pathFile, {
@@ -194,4 +226,5 @@ module.exports = {
   current,
   updateSubscription,
   avatars,
+  verify,
 }
